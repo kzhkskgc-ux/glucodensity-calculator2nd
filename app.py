@@ -456,6 +456,25 @@ def make_single_patient_pdf(pid: str, patient_dict, grids, settings: Settings) -
     return output.getvalue()
 
 
+def make_all_patients_pdf(store, grids, settings: Settings) -> bytes:
+    output = io.BytesIO()
+    with PdfPages(output) as pdf:
+        for pid, patient_dict in store.items():
+            fig1 = plot_patient_marginals(patient_dict, grids, pid)
+            pdf.savefig(fig1, bbox_inches="tight")
+            plt.close(fig1)
+
+            fig2 = plot_patient_quantiles(patient_dict, grids, pid)
+            pdf.savefig(fig2, bbox_inches="tight")
+            plt.close(fig2)
+
+            fig3 = plot_patient_joint_overlay(patient_dict, settings, pid)
+            pdf.savefig(fig3, bbox_inches="tight")
+            plt.close(fig3)
+    output.seek(0)
+    return output.getvalue()
+
+
 def make_all_patients_zip(store, grids, settings: Settings) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -622,23 +641,45 @@ def main():
             st.download_button("2変量密度等高線PNGを保存", data=png_joint, file_name=f"{selected_pid}_pairwise_density_contours.png", mime="image/png")
 
         pdf_bytes = make_single_patient_pdf(selected_pid, patient_dict, grids, settings)
-        st.download_button("選択患者の全図PDFを保存", data=pdf_bytes, file_name=f"{selected_pid}_all_figures.pdf", mime="application/pdf")
-
+        all_patients_pdf_bytes = make_all_patients_pdf(store, grids, settings)
         all_zip_bytes = make_all_patients_zip(store, grids, settings)
-        st.download_button(
-            "全患者の全図を一括ZIP保存",
-            data=all_zip_bytes,
-            file_name="all_patients_glucodensity_figures.zip",
-            mime="application/zip",
-        )
-
         excel_bytes = make_excel_bytes(df_metrics, store, grids, settings)
-        st.download_button(
-            "Excel結果をダウンロード",
-            data=excel_bytes,
-            file_name="multivariate_glucodensity_results.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+
+        d1, d2 = st.columns(2)
+        with d1:
+            st.download_button(
+                "選択患者の全図PDFを保存",
+                data=pdf_bytes,
+                file_name=f"{selected_pid}_all_figures.pdf",
+                mime="application/pdf",
+                key=f"single_pdf_{selected_pid}",
+            )
+        with d2:
+            st.download_button(
+                "解析対象者全員分の図をPDFで一括ダウンロード",
+                data=all_patients_pdf_bytes,
+                file_name="all_patients_glucodensity_figures.pdf",
+                mime="application/pdf",
+                key="all_patients_pdf",
+            )
+
+        d3, d4 = st.columns(2)
+        with d3:
+            st.download_button(
+                "全患者の全図をZIP保存",
+                data=all_zip_bytes,
+                file_name="all_patients_glucodensity_figures.zip",
+                mime="application/zip",
+                key="all_patients_zip",
+            )
+        with d4:
+            st.download_button(
+                "Excel結果をダウンロード",
+                data=excel_bytes,
+                file_name="multivariate_glucodensity_results.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="excel_download",
+            )
 
 
 if __name__ == "__main__":
